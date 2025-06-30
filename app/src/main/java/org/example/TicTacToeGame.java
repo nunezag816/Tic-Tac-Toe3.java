@@ -1,105 +1,128 @@
 package org.example;
 
-package game;
+import game.io.InputProvider;
+import game.io.OutputPrinter;
 
-import java.util.Scanner;
+import java.util.Arrays;
 
 public class TicTacToeGame {
-    private final Scanner scanner = new Scanner(System.in);
-    private final GameBoard board = new GameBoard();
-    private PlayerType p1, p2;
-    private AIPlayer aiPlayer;
-    private char[] symbols = {'X', 'O'};
+    private final InputProvider input;
+    private final OutputPrinter output;
+
+    private final char[] board = new char[9];
+    private char currentPlayer;
+    private boolean gameRunning;
+
+    public TicTacToeGame(InputProvider input, OutputPrinter output) {
+        this.input = input;
+        this.output = output;
+        Arrays.fill(board, ' ');
+        currentPlayer = 'X';
+        gameRunning = true;
+    }
 
     public void run() {
-        System.out.println("Welcome to Tic-Tac-Toe!\n");
-        selectMode();
+        output.print("Welcome to Tic-Tac-Toe!");
 
-        boolean playAgain = true;
-        while (playAgain) {
-            board.reset();
-            int turn = 0;
-            char winner = '-';
+        while (gameRunning) {
+            playRound();
+            output.print("Would you like to play again (yes/no)?");
+            String response = input.getInput().trim().toLowerCase();
+            while (!response.equals("yes") && !response.equals("no")) {
+                output.print("That is not a valid entry!");
+                response = input.getInput().trim().toLowerCase();
+            }
+            if (response.equals("no")) {
+                gameRunning = false;
+                output.print("Goodbye!");
+            } else {
+                resetBoard();
+                currentPlayer = 'X';
+            }
+        }
+    }
 
-            while (!board.isFull() && winner == '-') {
-                board.display();
-                System.out.print("\n");
+    private void playRound() {
+        boolean roundOver = false;
+        while (!roundOver) {
+            displayBoard();
+            output.print("What is your move?");
 
-                char currentSymbol = symbols[turn % 2];
-                PlayerType currentPlayer = turn % 2 == 0 ? p1 : p2;
-
-                if (currentPlayer == PlayerType.HUMAN) {
-                    int move = getHumanMove(currentSymbol);
-                    board.makeMove(move, currentSymbol);
-                } else {
-                    int move = aiPlayer.chooseMove(board);
-                    System.out.println("Computer chooses position: " + move);
-                    board.makeMove(move, currentSymbol);
+            String userInput = input.getInput();
+            int move;
+            try {
+                move = Integer.parseInt(userInput);
+                if (move < 1 || move > 9 || board[move - 1] != ' ') {
+                    output.print("That is not a valid move! Try again.");
+                    continue;
                 }
-
-                winner = board.checkWinner();
-                turn++;
+            } catch (NumberFormatException e) {
+                output.print("That is not a valid move! Try again.");
+                continue;
             }
 
-            board.display();
-            System.out.println();
+            board[move - 1] = currentPlayer;
 
-            if (winner == 'X' || winner == 'O') {
-                System.out.println("Player " + winner + " wins!");
+            if (checkWin()) {
+                displayBoard();
+                output.print("Player " + currentPlayer + " wins!");
+                roundOver = true;
+            } else if (isBoardFull()) {
+                displayBoard();
+                output.print("It's a tie!");
+                roundOver = true;
             } else {
-                System.out.println("It's a draw!");
+                switchPlayer();
             }
-
-            playAgain = askReplay();
-        }
-
-        System.out.println("Goodbye!");
-    }
-
-    private void selectMode() {
-        System.out.println("Choose game mode:");
-        System.out.println("1. Human vs Human");
-        System.out.println("2. Human vs Computer");
-        System.out.println("3. Computer vs Human");
-
-        int selection = 0;
-        while (selection < 1 || selection > 3) {
-            System.out.print("Enter 1, 2, or 3: ");
-            if (scanner.hasNextInt()) {
-                selection = scanner.nextInt();
-            } else {
-                scanner.next(); // clear invalid input
-            }
-        }
-
-        if (selection == 1) {
-            p1 = PlayerType.HUMAN;
-            p2 = PlayerType.HUMAN;
-        } else if (selection == 2) {
-            p1 = PlayerType.HUMAN;
-            p2 = PlayerType.COMPUTER;
-            aiPlayer = new AIPlayer('O', 'X');
-        } else {
-            p1 = PlayerType.COMPUTER;
-            p2 = PlayerType.HUMAN;
-            aiPlayer = new AIPlayer('X', 'O');
         }
     }
 
-    private int getHumanMove(char symbol) {
-        int move = 0;
-        while (!board.isValidMove(move)) {
-            System.out.print("Player " + symbol + ", enter your move (1–9): ");
-            if (scanner.hasNextInt()) {
-                move = scanner.nextInt();
-            } else {
-                System.out.println("Invalid input!");
-                scanner.next();
+    private void displayBoard() {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < 9; i++) {
+            char value = (board[i] == ' ') ? Character.forDigit(i + 1, 10) : board[i];
+            builder.append("  ").append(value).append("  ");
+            if ((i + 1) % 3 == 0 && i != 8) {
+                builder.append("\n-----+-----+-----\n");
+            } else if ((i + 1) % 3 != 0) {
+                builder.append("|");
             }
         }
-        return move;
+        output.print(builder.toString());
     }
 
+    private void switchPlayer() {
+        currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
+    }
+
+    private boolean checkWin() {
+        int[][] winPositions = {
+            {0, 1, 2}, {3, 4, 5}, {6, 7, 8}, // rows
+            {0, 3, 6}, {1, 4, 7}, {2, 5, 8}, // cols
+            {0, 4, 8}, {2, 4, 6}             // diags
+        };
+
+        for (int[] pos : winPositions) {
+            if (board[pos[0]] == currentPlayer &&
+                board[pos[1]] == currentPlayer &&
+                board[pos[2]] == currentPlayer) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isBoardFull() {
+        for (char c : board) {
+            if (c == ' ') return false;
+        }
+        return true;
+    }
+
+    private void resetBoard() {
+        Arrays.fill(board, ' ');
+    }
+}
     private boolean askReplay() {
         System.out.print("Would you like to play again (yes/no)? ");
         String input = scanner.next().toLowerCase();
